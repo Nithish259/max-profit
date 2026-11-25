@@ -1,21 +1,33 @@
 import test from 'node:test';
+
 import assert from 'node:assert/strict';
+
+import { spawnSync } from 'node:child_process';
+
+import { fileURLToPath } from 'node:url';
 
 import { BUILDINGS } from '../src/config/buildings.js';
 
-import { calculateMaxProfitBruteForce } from '../src/algorithms/maxProfit.js';
+import {
+  calculateMaxProfitBruteForce,
+  calculateMaxProfitMemoized,
+  calculateMaxProfitTabulated,
+  calculateMaxProfit,
+} from '../src/algorithms/maxProfit.js';
 
 import {
   parseTimeUnits,
   validateTimeUnits,
   MAX_BRUTE_FORCE_TIME,
+  MAX_MEMOIZATION_TIME,
+  MAX_DP_TIME,
 } from '../src/utils/validation.js';
 
 // ==========================================
-// BUILDING CONFIGURATION TESTS
+// BUILDING CONFIGURATION
 // ==========================================
 
-test('Building configuration matches assignment requirements', () => {
+test('Building configuration matches requirements', () => {
   assert.deepEqual(
     BUILDINGS.map((building) => ({
       type: building.type,
@@ -43,89 +55,200 @@ test('Building configuration matches assignment requirements', () => {
 });
 
 test('Building configuration is immutable', () => {
-  assert.equal(Object.isFrozen(BUILDINGS), true);
+  assert.ok(Object.isFrozen(BUILDINGS));
 
   for (const building of BUILDINGS) {
-    assert.equal(Object.isFrozen(building), true);
+    assert.ok(Object.isFrozen(building));
   }
 });
 
 // ==========================================
-// OFFICIAL ASSIGNMENT TEST CASES
+// SHARED TEST CASES
 // ==========================================
 
-test('Official case 1: time unit 7', () => {
-  assert.deepEqual(calculateMaxProfitBruteForce(7), {
+const ALGORITHMS = [
+  {
+    name: 'Brute Force',
+    calculate: calculateMaxProfitBruteForce,
+    maxTime: MAX_BRUTE_FORCE_TIME,
+  },
+  {
+    name: 'Memoization',
+    calculate: calculateMaxProfitMemoized,
+    maxTime: MAX_MEMOIZATION_TIME,
+  },
+  {
+    name: 'Tabulation',
+    calculate: calculateMaxProfitTabulated,
+    maxTime: MAX_DP_TIME,
+  },
+];
+
+const TEST_CASES = [
+  {
+    time: 0,
+    maxProfit: 0,
+    solutions: [{ T: 0, P: 0, C: 0 }],
+  },
+  {
+    time: 1,
+    maxProfit: 0,
+    solutions: [{ T: 0, P: 0, C: 0 }],
+  },
+  {
+    time: 2,
+    maxProfit: 0,
+    solutions: [{ T: 0, P: 0, C: 0 }],
+  },
+  {
+    time: 3,
+    maxProfit: 0,
+    solutions: [{ T: 0, P: 0, C: 0 }],
+  },
+  {
+    time: 4,
+    maxProfit: 0,
+    solutions: [{ T: 0, P: 0, C: 0 }],
+  },
+  {
+    time: 5,
+    maxProfit: 1000,
+    solutions: [{ T: 0, P: 1, C: 0 }],
+  },
+  {
+    time: 6,
+    maxProfit: 2000,
+    solutions: [{ T: 0, P: 1, C: 0 }],
+  },
+  {
+    time: 7,
     maxProfit: 3000,
     solutions: [
       { T: 1, P: 0, C: 0 },
       { T: 0, P: 1, C: 0 },
     ],
-  });
-});
-
-test('Official case 2: time unit 8', () => {
-  assert.deepEqual(calculateMaxProfitBruteForce(8), {
+  },
+  {
+    time: 8,
     maxProfit: 4500,
     solutions: [{ T: 1, P: 0, C: 0 }],
-  });
-});
-
-test('Official case 3: time unit 13', () => {
-  assert.deepEqual(calculateMaxProfitBruteForce(13), {
+  },
+  {
+    time: 9,
+    maxProfit: 6000,
+    solutions: [
+      { T: 1, P: 0, C: 0 },
+      { T: 0, P: 2, C: 0 },
+    ],
+  },
+  {
+    time: 13,
     maxProfit: 16500,
     solutions: [{ T: 2, P: 0, C: 0 }],
-  });
-});
+  },
+  {
+    time: 21,
+    maxProfit: 51500,
+    solutions: [{ T: 3, P: 1, C: 0 }],
+  },
+];
 
 // ==========================================
-// EDGE CASES
+// RUN EVERY CASE AGAINST EVERY ALGORITHM
 // ==========================================
 
-test('Zero available time', () => {
-  assert.deepEqual(calculateMaxProfitBruteForce(0), {
-    maxProfit: 0,
-    solutions: [{ T: 0, P: 0, C: 0 }],
-  });
-});
-
-test('Insufficient time for profitable construction', () => {
-  for (let time = 1; time <= 4; time++) {
-    assert.deepEqual(calculateMaxProfitBruteForce(time), {
-      maxProfit: 0,
-      solutions: [{ T: 0, P: 0, C: 0 }],
+for (const algorithm of ALGORITHMS) {
+  for (const testCase of TEST_CASES) {
+    test(`${algorithm.name}: time ${testCase.time}`, () => {
+      assert.deepEqual(algorithm.calculate(testCase.time), {
+        maxProfit: testCase.maxProfit,
+        solutions: testCase.solutions,
+      });
     });
+  }
+
+  test(`${algorithm.name}: rejects invalid inputs`, () => {
+    for (const value of [
+      -1,
+      7.5,
+      '13',
+      NaN,
+      Infinity,
+      -Infinity,
+      null,
+      undefined,
+      Number.MAX_SAFE_INTEGER + 1,
+    ]) {
+      assert.throws(
+        () => algorithm.calculate(value),
+        /non-negative safe integer/,
+      );
+    }
+  });
+
+  test(`${algorithm.name}: enforces input limit`, () => {
+    assert.throws(
+      () => algorithm.calculate(algorithm.maxTime + 1),
+      /cannot exceed/,
+    );
+  });
+
+  test(`${algorithm.name}: independent results`, () => {
+    const result = algorithm.calculate(7);
+
+    result.solutions[0].T = 99;
+
+    assert.deepEqual(result.solutions[1], { T: 0, P: 1, C: 0 });
+
+    assert.deepEqual(algorithm.calculate(7), {
+      maxProfit: 3000,
+      solutions: [
+        { T: 1, P: 0, C: 0 },
+        { T: 0, P: 1, C: 0 },
+      ],
+    });
+  });
+}
+
+// ==========================================
+// CROSS-ALGORITHM REGRESSION TESTS
+// ==========================================
+
+test('All algorithms agree for time units 0 to 50', () => {
+  for (let time = 0; time <= MAX_BRUTE_FORCE_TIME; time++) {
+    const brute = calculateMaxProfitBruteForce(time);
+
+    const memo = calculateMaxProfitMemoized(time);
+
+    const dp = calculateMaxProfitTabulated(time);
+
+    assert.deepEqual(memo, brute, `Memoization mismatch at time ${time}`);
+
+    assert.deepEqual(dp, brute, `Tabulation mismatch at time ${time}`);
   }
 });
 
-test('One pub is optimal for five time units', () => {
-  assert.deepEqual(calculateMaxProfitBruteForce(5), {
-    maxProfit: 1000,
-    solutions: [{ T: 0, P: 1, C: 0 }],
-  });
+test('Optimized algorithms agree on larger inputs', () => {
+  for (const time of [51, 100, 250, 500, 1000]) {
+    assert.deepEqual(
+      calculateMaxProfitMemoized(time),
+      calculateMaxProfitTabulated(time),
+    );
+  }
 });
 
-test('One pub is optimal for six time units', () => {
-  assert.deepEqual(calculateMaxProfitBruteForce(6), {
-    maxProfit: 2000,
-    solutions: [{ T: 0, P: 1, C: 0 }],
-  });
+test('Default algorithm uses optimized calculation', () => {
+  for (const time of [0, 7, 13, 21, 100]) {
+    assert.deepEqual(
+      calculateMaxProfit(time),
+      calculateMaxProfitTabulated(time),
+    );
+  }
 });
-
-test('Three theatres and one pub are optimal for 21 time units', () => {
-  assert.deepEqual(calculateMaxProfitBruteForce(21), {
-    maxProfit: 51500,
-    solutions: [{ T: 3, P: 1, C: 0 }],
-  });
-});
-
-// ==========================================
-// SOLUTION INTEGRITY TESTS
-// ==========================================
 
 test('Returned solutions contain no duplicates', () => {
-  for (let time = 0; time <= 30; time++) {
-    const result = calculateMaxProfitBruteForce(time);
+  for (let time = 0; time <= 100; time++) {
+    const result = calculateMaxProfit(time);
 
     const keys = result.solutions.map(({ T, P, C }) => `${T},${P},${C}`);
 
@@ -133,129 +256,246 @@ test('Returned solutions contain no duplicates', () => {
   }
 });
 
-test('Every solution fits the time budget', () => {
-  for (let time = 0; time <= 30; time++) {
-    const result = calculateMaxProfitBruteForce(time);
+test('Every returned combination fits the time budget', () => {
+  for (let time = 0; time <= 100; time++) {
+    const result = calculateMaxProfit(time);
 
     for (const solution of result.solutions) {
       const totalBuildTime = solution.T * 5 + solution.P * 4 + solution.C * 10;
 
       assert.ok(totalBuildTime <= time);
+
+      for (const count of Object.values(solution)) {
+        assert.ok(Number.isInteger(count) && count >= 0);
+      }
     }
   }
 });
 
-test('Saved solution objects remain independent', () => {
-  const result = calculateMaxProfitBruteForce(7);
+test('Maximum earnings never decrease as time increases', () => {
+  let previousProfit = 0;
 
-  result.solutions[0].T = 99;
+  for (let time = 0; time <= 100; time++) {
+    const { maxProfit } = calculateMaxProfit(time);
 
-  assert.deepEqual(result.solutions[1], { T: 0, P: 1, C: 0 });
+    assert.ok(maxProfit >= previousProfit);
 
-  assert.deepEqual(calculateMaxProfitBruteForce(7), {
-    maxProfit: 3000,
-    solutions: [
-      { T: 1, P: 0, C: 0 },
-      { T: 0, P: 1, C: 0 },
-    ],
-  });
-});
-
-// ==========================================
-// ALGORITHM INPUT VALIDATION
-// ==========================================
-
-test('Rejects negative time units', () => {
-  assert.throws(() => calculateMaxProfitBruteForce(-1), /non-negative/);
-});
-
-test('Rejects fractional time units', () => {
-  assert.throws(() => calculateMaxProfitBruteForce(7.5), /non-negative/);
-});
-
-test('Rejects string input', () => {
-  assert.throws(() => calculateMaxProfitBruteForce('13'), /non-negative/);
-});
-
-test('Rejects non-finite numbers', () => {
-  for (const value of [NaN, Infinity, -Infinity]) {
-    assert.throws(() => calculateMaxProfitBruteForce(value), /non-negative/);
+    previousProfit = maxProfit;
   }
 });
 
-test('Rejects unsafe integers', () => {
-  assert.throws(
-    () => calculateMaxProfitBruteForce(Number.MAX_SAFE_INTEGER + 1),
-    /safe integer/,
+// ==========================================
+// INDEPENDENT SOLUTION EARNINGS VERIFICATION
+// ==========================================
+
+test('Every returned combination achieves the reported earnings', () => {
+  // For fixed building counts, ordering by
+  // descending earnings/build-time ratio
+  // maximizes total operational earnings.
+  const orderedBuildings = [...BUILDINGS].sort(
+    (a, b) => b.earningsPerUnit / b.buildTime - a.earningsPerUnit / a.buildTime,
   );
+
+  for (let time = 0; time <= 100; time++) {
+    const result = calculateMaxProfit(time);
+
+    for (const solution of result.solutions) {
+      let elapsedTime = 0;
+
+      let totalEarnings = 0;
+
+      for (const building of orderedBuildings) {
+        const count = solution[building.type];
+
+        for (let i = 0; i < count; i++) {
+          elapsedTime += building.buildTime;
+
+          totalEarnings += (time - elapsedTime) * building.earningsPerUnit;
+        }
+      }
+
+      assert.equal(
+        totalEarnings,
+        result.maxProfit,
+        `Incorrect earnings at time ${time}`,
+      );
+    }
+  }
 });
 
 // ==========================================
-// CLI INPUT VALIDATION
+// LARGE INPUT TESTS
 // ==========================================
 
-test('Parses valid integer input', () => {
-  assert.equal(parseTimeUnits('13'), 13);
+test('Tabulation handles the maximum supported input', () => {
+  const result = calculateMaxProfitTabulated(MAX_DP_TIME);
+
+  assert.ok(result.maxProfit > 0);
+
+  assert.ok(Number.isSafeInteger(result.maxProfit));
+
+  assert.ok(result.solutions.length > 0);
+
+  for (const solution of result.solutions) {
+    const totalBuildTime = solution.T * 5 + solution.P * 4 + solution.C * 10;
+
+    assert.ok(totalBuildTime <= MAX_DP_TIME);
+  }
 });
 
-test('Accepts whitespace around input', () => {
-  assert.equal(parseTimeUnits('  7  '), 7);
+// ==========================================
+// INPUT PARSING TESTS
+// ==========================================
+
+const VALID_INPUTS = [
+  ['13', 13],
+  [' 7 ', 7],
+  ['0', 0],
+  ['007', 7],
+  ['10000', 10000],
+];
+
+for (const [input, expected] of VALID_INPUTS) {
+  test(`Parses valid input ${JSON.stringify(input)}`, () => {
+    assert.equal(parseTimeUnits(input), expected);
+  });
+}
+
+const INVALID_INPUTS = [
+  '',
+  '   ',
+  '-5',
+  '7.5',
+  'abc',
+  '1e2',
+  '0x10',
+  '+7',
+  null,
+  undefined,
+  '9007199254740992',
+];
+
+for (const input of INVALID_INPUTS) {
+  test(`Rejects invalid input ${JSON.stringify(input)}`, () => {
+    assert.throws(() => parseTimeUnits(input), /non-negative/);
+  });
+}
+
+test('Accepts maximum default time', () => {
+  assert.equal(validateTimeUnits(MAX_DP_TIME), MAX_DP_TIME);
 });
 
-test('Accepts zero', () => {
-  assert.equal(parseTimeUnits('0'), 0);
+test('Rejects input exceeding default maximum', () => {
+  assert.throws(() => parseTimeUnits('10001'), /cannot exceed/);
 });
 
-test('Accepts leading zeros', () => {
-  assert.equal(parseTimeUnits('007'), 7);
-});
+test('Supports custom algorithm limits', () => {
+  assert.equal(parseTimeUnits('50', MAX_BRUTE_FORCE_TIME), 50);
 
-test('Rejects empty input', () => {
-  assert.throws(() => parseTimeUnits(''), /non-negative/);
-});
-
-test('Rejects whitespace-only input', () => {
-  assert.throws(() => parseTimeUnits('   '), /non-negative/);
-});
-
-test('Rejects negative string input', () => {
-  assert.throws(() => parseTimeUnits('-5'), /non-negative/);
-});
-
-test('Rejects decimal string input', () => {
-  assert.throws(() => parseTimeUnits('7.5'), /non-negative/);
-});
-
-test('Rejects alphabetic input', () => {
-  assert.throws(() => parseTimeUnits('abc'), /non-negative/);
-});
-
-test('Rejects scientific notation', () => {
-  assert.throws(() => parseTimeUnits('1e2'), /non-negative/);
-});
-
-test('Rejects hexadecimal notation', () => {
-  assert.throws(() => parseTimeUnits('0x10'), /non-negative/);
-});
-
-test('Rejects null input', () => {
-  assert.throws(() => parseTimeUnits(null), /non-negative/);
-});
-
-test('Accepts the maximum supported time', () => {
-  assert.equal(validateTimeUnits(MAX_BRUTE_FORCE_TIME), MAX_BRUTE_FORCE_TIME);
-});
-
-test('Rejects time exceeding the brute-force limit', () => {
   assert.throws(
-    () => calculateMaxProfitBruteForce(MAX_BRUTE_FORCE_TIME + 1),
+    () => parseTimeUnits('51', MAX_BRUTE_FORCE_TIME),
     /cannot exceed/,
   );
 });
 
-test('Rejects CLI input exceeding the limit', () => {
-  assert.throws(
-    () => parseTimeUnits(String(MAX_BRUTE_FORCE_TIME + 1)),
-    /cannot exceed/,
-  );
+// ==========================================
+// CLI INTEGRATION TESTS
+// ==========================================
+
+const CLI_PATH = fileURLToPath(new URL('../src/main.js', import.meta.url));
+
+function runCli(args, input = '') {
+  return spawnSync(process.execPath, [CLI_PATH, ...args], {
+    encoding: 'utf8',
+    input,
+    timeout: 10000,
+  });
+}
+
+test('CLI uses bottom-up DP by default', () => {
+  const result = runCli(['13']);
+
+  assert.equal(result.status, 0);
+
+  assert.match(result.stdout, /Earnings: \$16500/);
+
+  assert.match(result.stdout, /T: 2 P: 0 C: 0/);
+
+  assert.match(result.stdout, /Bottom-Up DP/);
+});
+
+test('CLI supports memoization', () => {
+  const result = runCli(['7', 'memo']);
+
+  assert.equal(result.status, 0);
+
+  assert.match(result.stdout, /Earnings: \$3000/);
+
+  assert.match(result.stdout, /T: 1 P: 0 C: 0/);
+
+  assert.match(result.stdout, /T: 0 P: 1 C: 0/);
+
+  assert.match(result.stdout, /Top-Down DP/);
+});
+
+test('CLI supports brute force', () => {
+  const result = runCli(['21', 'brute']);
+
+  assert.equal(result.status, 0);
+
+  assert.match(result.stdout, /Earnings: \$51500/);
+
+  assert.match(result.stdout, /T: 3 P: 1 C: 0/);
+});
+
+test('CLI supports interactive input', () => {
+  const result = runCli([], '8\n');
+
+  assert.equal(result.status, 0);
+
+  assert.match(result.stdout, /Earnings: \$4500/);
+});
+
+test('CLI rejects invalid algorithm', () => {
+  const result = runCli(['13', 'invalid']);
+
+  assert.equal(result.status, 1);
+
+  assert.match(result.stderr, /Invalid algorithm/);
+});
+
+test('CLI rejects invalid time input', () => {
+  const result = runCli(['-5']);
+
+  assert.equal(result.status, 1);
+
+  assert.match(result.stderr, /non-negative/);
+});
+
+test('CLI rejects excessive brute-force input', () => {
+  const result = runCli(['51', 'brute']);
+
+  assert.equal(result.status, 1);
+
+  assert.match(result.stderr, /cannot exceed/);
+});
+
+test('CLI rejects extra arguments', () => {
+  const result = runCli(['13', 'dp', 'extra']);
+
+  assert.equal(result.status, 1);
+
+  assert.match(result.stderr, /Too many arguments/);
+});
+
+test('CLI displays help', () => {
+  const result = runCli(['--help']);
+
+  assert.equal(result.status, 0);
+
+  assert.match(result.stdout, /Usage:/);
+
+  assert.match(result.stdout, /memo/);
+
+  assert.match(result.stdout, /brute/);
 });
