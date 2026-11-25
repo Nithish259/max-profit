@@ -1,0 +1,15 @@
+{
+  "name": "max-profit",
+  "version": "1.0.0",
+  "description": "Maximum profit construction scheduling algorithm",
+  "main": "index.js",
+  "scripts": {
+    "test": "node --test",
+    "start": "node src/main.js"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "module",
+  "private": true
+}
